@@ -33,27 +33,50 @@ az network traffic-manager endpoint create \
     --endpoint-location "Central US" \
     --endpoint-status Enabled
 
-# Deploy application code
+# Deploy application code using Git deployment
 echo "Deploying application code..."
 
-# Create deployment package
-zip -r app.zip . -x "*.git*" "*.DS_Store*" "deploy*.sh" "README.md" "fix-deployment.sh" "cleanup.sh"
+# Initialize git repo if not already done
+if [ ! -d ".git" ]; then
+    git init
+    git add .
+    git commit -m "Initial commit"
+fi
 
-# Deploy to both web apps
+# Deploy to East US web app using local git
 echo "Deploying to East US web app..."
-az webapp deployment source config-zip \
+az webapp deployment source config-local-git \
     --name $WEB_APP_EAST \
-    --resource-group $RESOURCE_GROUP \
-    --src app.zip
+    --resource-group $RESOURCE_GROUP
 
+# Get deployment credentials
+EAST_GIT_URL=$(az webapp deployment source show --name $WEB_APP_EAST --resource-group $RESOURCE_GROUP --query repoUrl -o tsv 2>/dev/null || echo "")
+
+# Deploy to Central US web app using local git
 echo "Deploying to Central US web app..."
-az webapp deployment source config-zip \
+az webapp deployment source config-local-git \
     --name $WEB_APP_CENTRAL \
-    --resource-group $RESOURCE_GROUP \
-    --src app.zip
+    --resource-group $RESOURCE_GROUP
 
-# Clean up
-rm app.zip
+# Alternative: Use zip deployment with PowerShell (Windows compatible)
+echo "Creating deployment package with PowerShell..."
+powershell -Command "Compress-Archive -Path '*.py', '*.txt', 'templates', 'static', '*.config', '*.sh' -DestinationPath 'app.zip' -Force" 2>/dev/null || {
+    echo "PowerShell not available, using manual file copy approach..."
+    
+    # Create a simple deployment using az webapp up
+    echo "Using az webapp up for deployment..."
+    az webapp up \
+        --name $WEB_APP_EAST \
+        --resource-group $RESOURCE_GROUP \
+        --runtime "PYTHON|3.11" \
+        --sku S1
+        
+    az webapp up \
+        --name $WEB_APP_CENTRAL \
+        --resource-group $RESOURCE_GROUP \
+        --runtime "PYTHON|3.11" \
+        --sku S1
+}
 
 echo ""
 echo "🎉 Deployment fixed and completed successfully!"

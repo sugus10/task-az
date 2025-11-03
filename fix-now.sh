@@ -14,20 +14,34 @@ SQL_PASSWORD="P@ssw0rd123!"
 echo "🔧 Direct Fix for Application Errors"
 echo "===================================="
 
-# Create the exact connection string
-CONNECTION_STRING="Driver={ODBC Driver 18 for SQL Server};Server=tcp:${SQL_SERVER}.database.windows.net,1433;Database=${SQL_DATABASE};Uid=${SQL_ADMIN};Pwd=${SQL_PASSWORD};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
-
+# Use connection strings instead of app settings (more reliable)
 echo "Setting connection string for East US..."
+az webapp config connection-string set \
+    --name $WEB_APP_EAST \
+    --resource-group $RESOURCE_GROUP \
+    --connection-string-type SQLServer \
+    --settings DefaultConnection="Server=tcp:${SQL_SERVER}.database.windows.net,1433;Initial Catalog=${SQL_DATABASE};Persist Security Info=False;User ID=${SQL_ADMIN};Password=${SQL_PASSWORD};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+
+echo "Setting connection string for Central US..."
+az webapp config connection-string set \
+    --name $WEB_APP_CENTRAL \
+    --resource-group $RESOURCE_GROUP \
+    --connection-string-type SQLServer \
+    --settings DefaultConnection="Server=tcp:${SQL_SERVER}.database.windows.net,1433;Initial Catalog=${SQL_DATABASE};Persist Security Info=False;User ID=${SQL_ADMIN};Password=${SQL_PASSWORD};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+
+# Also set as environment variable with simpler format
+echo "Setting backup environment variable..."
+SIMPLE_CONNECTION="Server=${SQL_SERVER}.database.windows.net;Database=${SQL_DATABASE};User=${SQL_ADMIN};Password=${SQL_PASSWORD};"
+
 az webapp config appsettings set \
     --name $WEB_APP_EAST \
     --resource-group $RESOURCE_GROUP \
-    --settings "SQL_CONNECTION_STRING=${CONNECTION_STRING}"
+    --settings DATABASE_URL="$SIMPLE_CONNECTION"
 
-echo "Setting connection string for Central US..."
 az webapp config appsettings set \
     --name $WEB_APP_CENTRAL \
     --resource-group $RESOURCE_GROUP \
-    --settings "SQL_CONNECTION_STRING=${CONNECTION_STRING}"
+    --settings DATABASE_URL="$SIMPLE_CONNECTION"
 
 # Also set a simpler startup command
 echo "Setting simpler startup command..."

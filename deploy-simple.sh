@@ -124,14 +124,16 @@ az network traffic-manager endpoint create \
     --profile-name $TRAFFIC_MANAGER \
     --resource-group $RESOURCE_GROUP \
     --type azureEndpoints \
-    --target-resource-id "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.Web/sites/${WEB_APP_EAST}"
+    --target-resource-id "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.Web/sites/${WEB_APP_EAST}" \
+    --endpoint-status Enabled
 
 az network traffic-manager endpoint create \
     --name "central-endpoint" \
     --profile-name $TRAFFIC_MANAGER \
     --resource-group $RESOURCE_GROUP \
     --type azureEndpoints \
-    --target-resource-id "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.Web/sites/${WEB_APP_CENTRAL}"
+    --target-resource-id "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.Web/sites/${WEB_APP_CENTRAL}" \
+    --endpoint-status Enabled
 
 # Deploy application code
 echo "Deploying application code..."

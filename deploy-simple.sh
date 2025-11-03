@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Azure CRUD Application Deployment Script
-# This script creates all Azure resources for high availability deployment
+# Simplified Azure CRUD Application Deployment Script
+# This version uses environment variables instead of Key Vault for easier deployment
 
 set -e
 
@@ -26,13 +26,10 @@ SQL_DATABASE="myDatabase"
 SQL_ADMIN="sqladmin"
 SQL_PASSWORD="P@ssw0rd123!"
 
-# Key Vault
-KEY_VAULT="kv-crud-${TIMESTAMP}"
-
 # Traffic Manager
 TRAFFIC_MANAGER="tm-crud-${TIMESTAMP}"
 
-echo "Starting Azure CRUD Application deployment..."
+echo "Starting Simplified Azure CRUD Application deployment..."
 echo "Timestamp: ${TIMESTAMP}"
 echo "Resource Group: ${RESOURCE_GROUP}"
 
@@ -69,30 +66,6 @@ az sql db create \
     --name $SQL_DATABASE \
     --service-objective S0
 
-# Create Key Vault with access policies (not RBAC)
-echo "Creating Key Vault..."
-USER_OBJECT_ID=$(az ad signed-in-user show --query id -o tsv)
-
-az keyvault create \
-    --name $KEY_VAULT \
-    --resource-group $RESOURCE_GROUP \
-    --location $LOCATION_EAST \
-    --sku standard \
-    --enabled-for-template-deployment true \
-    --access-policy "[{\"tenantId\":\"$(az account show --query tenantId -o tsv)\",\"objectId\":\"$USER_OBJECT_ID\",\"permissions\":{\"secrets\":[\"get\",\"list\",\"set\",\"delete\"]}}]"
-
-# Wait for Key Vault to be ready
-echo "Waiting for Key Vault to be ready..."
-sleep 30
-
-# Store connection string in Key Vault
-CONNECTION_STRING="Driver={ODBC Driver 18 for SQL Server};Server=tcp:${SQL_SERVER}.database.windows.net,1433;Database=${SQL_DATABASE};Uid=${SQL_ADMIN};Pwd=${SQL_PASSWORD};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
-
-az keyvault secret set \
-    --vault-name $KEY_VAULT \
-    --name "sql-connection-string" \
-    --value "$CONNECTION_STRING"
-
 # Create App Service Plans
 echo "Creating App Service Plans..."
 az appservice plan create \
@@ -123,45 +96,19 @@ az webapp create \
     --plan $APP_SERVICE_PLAN_CENTRAL \
     --runtime "PYTHON|3.11"
 
-# Enable managed identity for web apps
-echo "Enabling managed identities..."
-az webapp identity assign \
-    --name $WEB_APP_EAST \
-    --resource-group $RESOURCE_GROUP
-
-az webapp identity assign \
-    --name $WEB_APP_CENTRAL \
-    --resource-group $RESOURCE_GROUP
-
-# Get managed identity principal IDs
-EAST_PRINCIPAL_ID=$(az webapp identity show --name $WEB_APP_EAST --resource-group $RESOURCE_GROUP --query principalId -o tsv)
-CENTRAL_PRINCIPAL_ID=$(az webapp identity show --name $WEB_APP_CENTRAL --resource-group $RESOURCE_GROUP --query principalId -o tsv)
-
-# Grant Key Vault access to managed identities
-echo "Granting Key Vault access..."
-az keyvault set-policy \
-    --name $KEY_VAULT \
-    --object-id $EAST_PRINCIPAL_ID \
-    --secret-permissions get
-
-az keyvault set-policy \
-    --name $KEY_VAULT \
-    --object-id $CENTRAL_PRINCIPAL_ID \
-    --secret-permissions get
-
-# Configure app settings
+# Configure app settings with connection string
 echo "Configuring app settings..."
-KEY_VAULT_URL="https://${KEY_VAULT}.vault.azure.net/"
+CONNECTION_STRING="Driver={ODBC Driver 18 for SQL Server};Server=tcp:${SQL_SERVER}.database.windows.net,1433;Database=${SQL_DATABASE};Uid=${SQL_ADMIN};Pwd=${SQL_PASSWORD};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 
 az webapp config appsettings set \
     --name $WEB_APP_EAST \
     --resource-group $RESOURCE_GROUP \
-    --settings KEY_VAULT_URL="$KEY_VAULT_URL"
+    --settings SQL_CONNECTION_STRING="$CONNECTION_STRING"
 
 az webapp config appsettings set \
     --name $WEB_APP_CENTRAL \
     --resource-group $RESOURCE_GROUP \
-    --settings KEY_VAULT_URL="$KEY_VAULT_URL"
+    --settings SQL_CONNECTION_STRING="$CONNECTION_STRING"
 
 # Create Traffic Manager Profile
 echo "Creating Traffic Manager..."
@@ -190,7 +137,7 @@ az network traffic-manager endpoint create \
 echo "Deploying application code..."
 
 # Create deployment package
-zip -r app.zip . -x "*.git*" "*.DS_Store*" "deploy.sh" "README.md"
+zip -r app.zip . -x "*.git*" "*.DS_Store*" "deploy*.sh" "README.md"
 
 # Deploy to both web apps
 az webapp deployment source config-zip \
@@ -214,7 +161,6 @@ echo "====================="
 echo "Resource Group: $RESOURCE_GROUP"
 echo "SQL Server: ${SQL_SERVER}.database.windows.net"
 echo "Database: $SQL_DATABASE"
-echo "Key Vault: $KEY_VAULT"
 echo ""
 echo "🌐 Application URLs:"
 echo "==================="
@@ -232,7 +178,7 @@ echo "==================="
 echo "1. It may take 5-10 minutes for the applications to fully start"
 echo "2. The database will be initialized automatically on first access"
 echo "3. Traffic Manager DNS propagation may take up to 5 minutes"
-echo "4. Both web apps use managed identities to access Key Vault securely"
+echo "4. Connection string is stored as environment variable (not Key Vault)"
 echo ""
 echo "🧪 Test your deployment:"
 echo "======================="

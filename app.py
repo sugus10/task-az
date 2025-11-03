@@ -9,19 +9,24 @@ app = Flask(__name__)
 
 # Azure Key Vault configuration
 def get_connection_string():
-    try:
-        # Use managed identity to access Key Vault
-        credential = DefaultAzureCredential()
-        vault_url = os.environ.get('KEY_VAULT_URL', 'https://your-keyvault.vault.azure.net/')
-        client = SecretClient(vault_url=vault_url, credential=credential)
-        
-        # Get connection string from Key Vault
-        connection_string = client.get_secret("sql-connection-string").value
+    # First try environment variable (simpler approach)
+    connection_string = os.environ.get('SQL_CONNECTION_STRING')
+    if connection_string:
         return connection_string
+    
+    # Fallback to Key Vault if configured
+    try:
+        vault_url = os.environ.get('KEY_VAULT_URL')
+        if vault_url:
+            credential = DefaultAzureCredential()
+            client = SecretClient(vault_url=vault_url, credential=credential)
+            connection_string = client.get_secret("sql-connection-string").value
+            return connection_string
     except Exception as e:
         print(f"Error accessing Key Vault: {e}")
-        # Fallback to environment variable for local development
-        return os.environ.get('SQL_CONNECTION_STRING', '')
+    
+    # Final fallback
+    return os.environ.get('DATABASE_URL', '')
 
 def get_db_connection():
     connection_string = get_connection_string()

@@ -66,6 +66,25 @@ az sql db create \
     --name $SQL_DATABASE \
     --service-objective S0
 
+# Create Key Vault
+KEY_VAULT="kv-crud-${TIMESTAMP}"
+echo "Creating Key Vault..."
+az keyvault create \
+    --name $KEY_VAULT \
+    --resource-group $RESOURCE_GROUP \
+    --location $LOCATION_EAST \
+    --sku standard \
+    --enabled-for-template-deployment true
+
+# Store connection string in Key Vault
+echo "Storing connection string in Key Vault..."
+CONNECTION_STRING="Driver={ODBC Driver 18 for SQL Server};Server=tcp:${SQL_SERVER}.database.windows.net,1433;Database=${SQL_DATABASE};Uid=${SQL_ADMIN};Pwd=${SQL_PASSWORD};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
+
+az keyvault secret set \
+    --vault-name $KEY_VAULT \
+    --name "sql-connection-string" \
+    --value "$CONNECTION_STRING"
+
 # Create App Service Plans
 echo "Creating App Service Plans..."
 az appservice plan create \
@@ -96,16 +115,42 @@ az webapp create \
     --plan $APP_SERVICE_PLAN_CENTRAL \
     --runtime "PYTHON|3.11"
 
-# Configure database connection and startup
-echo "Configuring database connection..."
-CONNECTION_STRING="Driver={ODBC Driver 18 for SQL Server};Server=tcp:${SQL_SERVER}.database.windows.net,1433;Database=${SQL_DATABASE};Uid=${SQL_ADMIN};Pwd=${SQL_PASSWORD};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
+# Enable managed identity for web apps
+echo "Enabling managed identities..."
+az webapp identity assign \
+    --name $WEB_APP_EAST \
+    --resource-group $RESOURCE_GROUP
 
-# Set connection string and startup command for both apps
+az webapp identity assign \
+    --name $WEB_APP_CENTRAL \
+    --resource-group $RESOURCE_GROUP
+
+# Get managed identity principal IDs
+EAST_PRINCIPAL_ID=$(az webapp identity show --name $WEB_APP_EAST --resource-group $RESOURCE_GROUP --query principalId -o tsv)
+CENTRAL_PRINCIPAL_ID=$(az webapp identity show --name $WEB_APP_CENTRAL --resource-group $RESOURCE_GROUP --query principalId -o tsv)
+
+# Grant Key Vault access to managed identities
+echo "Granting Key Vault access..."
+az keyvault set-policy \
+    --name $KEY_VAULT \
+    --object-id $EAST_PRINCIPAL_ID \
+    --secret-permissions get
+
+az keyvault set-policy \
+    --name $KEY_VAULT \
+    --object-id $CENTRAL_PRINCIPAL_ID \
+    --secret-permissions get
+
+# Configure app settings with Key Vault reference
+echo "Configuring app settings..."
+KEY_VAULT_URL="https://${KEY_VAULT}.vault.azure.net/"
+
+# Set Key Vault URL and startup command for both apps
 for APP in $WEB_APP_EAST $WEB_APP_CENTRAL; do
     az webapp config appsettings set \
         --name $APP \
         --resource-group $RESOURCE_GROUP \
-        --settings SQL_CONNECTION_STRING="$CONNECTION_STRING"
+        --settings KEY_VAULT_URL="$KEY_VAULT_URL"
     
     az webapp config set \
         --name $APP \
@@ -162,9 +207,12 @@ echo "📋 Task Requirements Met:"
 echo "========================"
 echo "✅ Multi-region deployment: East US + Central US"
 echo "✅ Azure SQL Database: ${SQL_SERVER}.database.windows.net"
+echo "✅ Azure Key Vault: ${KEY_VAULT}.vault.azure.net"
+echo "✅ Managed Identity: Secure access to Key Vault"
 echo "✅ Traffic Manager: Performance routing with failover"
 echo "✅ Full CRUD operations: Create, Read, Update, Delete"
 echo "✅ High availability: Automatic failover between regions"
+echo "✅ Secure secrets management: Connection strings in Key Vault"
 echo ""
 echo "🌐 Application URLs:"
 echo "==================="

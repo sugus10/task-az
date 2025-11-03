@@ -13,22 +13,22 @@ TRAFFIC_MANAGER="tm-crud-${TIMESTAMP}"
 
 echo "Fixing deployment for Resource Group: ${RESOURCE_GROUP}"
 
-# Add endpoints to Traffic Manager with correct parameters
+# Add endpoints to Traffic Manager using external endpoints (simpler approach)
 echo "Adding Traffic Manager endpoints..."
 az network traffic-manager endpoint create \
     --name "east-endpoint" \
     --profile-name $TRAFFIC_MANAGER \
     --resource-group $RESOURCE_GROUP \
-    --type azureEndpoints \
-    --target-resource-id "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.Web/sites/${WEB_APP_EAST}" \
+    --type externalEndpoints \
+    --target "${WEB_APP_EAST}.azurewebsites.net" \
     --endpoint-status Enabled
 
 az network traffic-manager endpoint create \
     --name "central-endpoint" \
     --profile-name $TRAFFIC_MANAGER \
     --resource-group $RESOURCE_GROUP \
-    --type azureEndpoints \
-    --target-resource-id "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.Web/sites/${WEB_APP_CENTRAL}" \
+    --type externalEndpoints \
+    --target "${WEB_APP_CENTRAL}.azurewebsites.net" \
     --endpoint-status Enabled
 
 # Deploy application code

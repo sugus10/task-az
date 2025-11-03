@@ -13,7 +13,7 @@ TRAFFIC_MANAGER="tm-crud-${TIMESTAMP}"
 
 echo "Fixing deployment for Resource Group: ${RESOURCE_GROUP}"
 
-# Add endpoints to Traffic Manager using external endpoints (simpler approach)
+# Add endpoints to Traffic Manager using external endpoints with locations
 echo "Adding Traffic Manager endpoints..."
 az network traffic-manager endpoint create \
     --name "east-endpoint" \
@@ -21,6 +21,7 @@ az network traffic-manager endpoint create \
     --resource-group $RESOURCE_GROUP \
     --type externalEndpoints \
     --target "${WEB_APP_EAST}.azurewebsites.net" \
+    --endpoint-location "East US" \
     --endpoint-status Enabled
 
 az network traffic-manager endpoint create \
@@ -29,6 +30,7 @@ az network traffic-manager endpoint create \
     --resource-group $RESOURCE_GROUP \
     --type externalEndpoints \
     --target "${WEB_APP_CENTRAL}.azurewebsites.net" \
+    --endpoint-location "Central US" \
     --endpoint-status Enabled
 
 # Deploy application code

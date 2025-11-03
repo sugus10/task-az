@@ -55,13 +55,19 @@ az webapp config set \
     --resource-group $RESOURCE_GROUP \
     --startup-file "python app.py"
 
-# Restart both apps
-echo "Restarting apps..."
-az webapp restart --name $WEB_APP_EAST --resource-group $RESOURCE_GROUP
-az webapp restart --name $WEB_APP_CENTRAL --resource-group $RESOURCE_GROUP
+# Deploy updated app code with better error handling
+echo "Deploying updated app code..."
+az webapp up \
+    --name $WEB_APP_CENTRAL \
+    --resource-group $RESOURCE_GROUP \
+    --runtime "PYTHON|3.11" \
+    --location "centralus"
 
 echo ""
 echo "✅ Fix applied! Wait 3-5 minutes and test:"
 echo "Central US: https://${WEB_APP_CENTRAL}.azurewebsites.net"
 echo "East US: https://${WEB_APP_EAST}.azurewebsites.net"
 echo "Traffic Manager: https://tm-crud-${TIMESTAMP}.trafficmanager.net"
+echo ""
+echo "🔍 Debug info:"
+echo "https://${WEB_APP_CENTRAL}.azurewebsites.net/debug"

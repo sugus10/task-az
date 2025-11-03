@@ -9,9 +9,18 @@ app = Flask(__name__)
 
 # Azure Key Vault configuration
 def get_connection_string():
-    # First try environment variable (simpler approach)
+    # Try multiple sources for connection string
     connection_string = os.environ.get('SQL_CONNECTION_STRING')
-    if connection_string:
+    if connection_string and connection_string != 'null':
+        return connection_string
+    
+    connection_string = os.environ.get('DATABASE_URL')
+    if connection_string and connection_string != 'null':
+        return connection_string
+    
+    # Try connection strings from Azure
+    connection_string = os.environ.get('SQLAZURECONNSTR_DefaultConnection')
+    if connection_string and connection_string != 'null':
         return connection_string
     
     # Fallback to Key Vault if configured
@@ -25,15 +34,19 @@ def get_connection_string():
     except Exception as e:
         print(f"Error accessing Key Vault: {e}")
     
-    # Final fallback
-    return os.environ.get('DATABASE_URL', '')
+    # Return empty string if no connection found
+    return ''
 
 def get_db_connection():
     connection_string = get_connection_string()
     if not connection_string:
         raise Exception("No database connection string found")
     
-    return pyodbc.connect(connection_string)
+    try:
+        return pyodbc.connect(connection_string)
+    except Exception as e:
+        print(f"Database connection error: {e}")
+        raise Exception(f"Failed to connect to database: {e}")
 
 def init_database():
     """Initialize database table if it doesn't exist"""
@@ -59,6 +72,7 @@ def init_database():
         print("Database initialized successfully")
     except Exception as e:
         print(f"Database initialization error: {e}")
+        print("App will continue without database initialization")
 
 @app.route('/')
 def index():
@@ -227,6 +241,20 @@ def health_check():
         return jsonify({'status': 'healthy', 'database': 'connected'})
     except Exception as e:
         return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
+
+@app.route('/debug')
+def debug_info():
+    """Debug route to check environment variables"""
+    env_vars = {}
+    for key in os.environ:
+        if 'SQL' in key.upper() or 'DATABASE' in key.upper() or 'CONNECTION' in key.upper():
+            env_vars[key] = os.environ[key][:50] + "..." if len(os.environ[key]) > 50 else os.environ[key]
+    
+    return jsonify({
+        'environment_variables': env_vars,
+        'connection_string_found': bool(get_connection_string()),
+        'python_version': os.sys.version
+    })
 
 if __name__ == '__main__':
     init_database()

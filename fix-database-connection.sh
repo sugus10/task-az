@@ -2,7 +2,7 @@
 
 # Fix database connection for both apps to meet task requirements
 
-TIMESTAMP="20251103133251"
+TIMESTAMP="20251103145006"
 RESOURCE_GROUP="rg-crud-app-${TIMESTAMP}"
 WEB_APP_EAST="webapp-crud-east-${TIMESTAMP}"
 WEB_APP_CENTRAL="webapp-crud-central-${TIMESTAMP}"
